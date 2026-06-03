@@ -3,6 +3,7 @@
  * Only these email addresses can access the application
  */
 export const EMAIL_WHITELIST: string[] = [
+  'zheka78527@gmail.com',
   'evhenii.sarancha@gmail.com',
   'dianalysenko2204@gmail.com',
 ];
