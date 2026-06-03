@@ -150,13 +150,13 @@ Users can track body weight over time.
 
 ---
 
-## Iteration 9 - UX Improvements
+## Iteration 9 - UX Improvements ⏭️ (Skipped for now)
 
 Goal: Polish application.
 
 Tasks:
 
-* Dark mode
+* Dark mode toggle
 * Loading states
 * Empty states
 * Error handling
@@ -165,24 +165,24 @@ Tasks:
 
 Deliverable:
 
-Production-ready user experience.
+Production-ready user experience. (Deferred)
 
 ---
 
-## Iteration 10 - DevOps & Portfolio Readiness
+## Iteration 10 - DevOps & Vercel Deployment 🚀 (In Progress)
 
-Goal: Showcase engineering practices.
+Goal: Deploy application and establish portfolio readiness.
 
 Tasks:
 
-* Dockerfile
-* docker-compose
-* GitHub Actions
-* Automated testing
-* Documentation
-* README
-* Architecture diagram
+* ✅ vercel.json configuration
+* Deploy to Vercel
+* Environment variables setup
+* MongoDB Atlas whitelist
+* Google OAuth redirect URIs
+* Production testing
+* Custom domain setup (optional)
 
 Deliverable:
 
-Portfolio-ready project suitable for interviews.
+Live production deployment on Vercel suitable for portfolio.

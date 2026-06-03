@@ -2,23 +2,31 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/auth';
 import { UserService } from '@/lib/services/UserService';
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
     const session = await auth();
     if (!session?.user?.email) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    let user = await UserService.getUserByEmail(session.user.email);
+    // Allow fetching a specific user by email (for user switcher)
+    const emailParam = request.nextUrl.searchParams.get('email');
+    const emailToFetch = emailParam || session.user.email;
+
+    let user = await UserService.getUserByEmail(emailToFetch);
     
-    // Create user if they don't exist yet
-    if (!user) {
+    // Create user if they don't exist yet (only for authenticated user)
+    if (!user && emailToFetch === session.user.email) {
       user = await UserService.upsertByEmail(session.user.email, {
         name: session.user.name || '',
         email: session.user.email,
         image: session.user.image || undefined,
         dailyCalorieTarget: 2000, // Default target
       });
+    }
+
+    if (!user) {
+      return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
     return NextResponse.json({ user });

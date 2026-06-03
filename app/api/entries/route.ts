@@ -9,7 +9,10 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const userId = session.user.email;
+    // Allow fetching entries for a specific user (for user switcher)
+    // or default to authenticated user
+    const userIdParam = request.nextUrl.searchParams.get('userId');
+    const userId = userIdParam || session.user.email;
     
     // Optional: filter by date
     const dateParam = request.nextUrl.searchParams.get('date');
@@ -46,14 +49,30 @@ export async function POST(request: NextRequest) {
     const userId = session.user.email;
     const data = await request.json();
 
+    console.log('[Entry API] Creating entry with data:', JSON.stringify({ userId, data }, null, 2));
+
     const entry = await EntryService.createEntry({
       userId,
       ...data,
     });
 
+    console.log('[Entry API] Entry created successfully:', entry._id);
     return NextResponse.json({ entry }, { status: 201 });
   } catch (error) {
-    console.error('Error creating entry:', error);
-    return NextResponse.json({ error: 'Failed to create entry' }, { status: 500 });
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    const errorDetails = error instanceof Error ? error : null;
+    
+    console.error('[Entry API] Error creating entry:', errorMessage);
+    console.error('[Entry API] Full error:', errorDetails);
+    
+    // Return detailed error for development debugging
+    return NextResponse.json(
+      { 
+        error: 'Failed to create entry',
+        message: errorMessage,
+        details: process.env.NODE_ENV === 'development' ? String(errorDetails) : undefined
+      }, 
+      { status: 500 }
+    );
   }
 }

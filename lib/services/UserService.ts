@@ -50,4 +50,12 @@ export class UserService {
   static async updateCalorieTarget(id: string, target: number): Promise<IUser | null> {
     return this.updateUser(id, { dailyCalorieTarget: target });
   }
+
+  /**
+   * Get all users
+   */
+  static async getAllUsers(): Promise<IUser[]> {
+    await dbConnect();
+    return User.find({}).sort({ name: 1 });
+  }
 }

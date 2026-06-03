@@ -1,18 +1,64 @@
 import { dbConnect } from '../db';
-import { Entry, IEntry } from '../models/Entry';
+import { Entry, IEntry, Ingredient } from '../models/Entry';
 
 export class EntryService {
+  /**
+   * Calculate calories for simple mode entry
+   */
+  private static calculateSimpleCalories(
+    caloriesPer100g: number,
+    weightGrams: number
+  ): number {
+    return (caloriesPer100g * weightGrams) / 100;
+  }
+
+  /**
+   * Calculate calories for recipe mode entry
+   */
+  private static calculateRecipeCalories(
+    ingredients: Ingredient[],
+    manualTotalCalories?: number
+  ): number {
+    // If manual override is provided, use it
+    if (manualTotalCalories !== undefined) {
+      return manualTotalCalories;
+    }
+
+    // Calculate based on ingredients
+    return ingredients.reduce((total, ingredient) => {
+      if (ingredient.manualCalories !== undefined) {
+        return total + ingredient.manualCalories;
+      }
+      if (ingredient.caloriesPer100g !== undefined) {
+        return total + (ingredient.caloriesPer100g * ingredient.weight) / 100;
+      }
+      return total;
+    }, 0);
+  }
+
+  /**
+   * Calculate calories based on mode
+   */
+  private static calculateCalories(entry: Partial<IEntry>): number {
+    if (entry.mode === 'recipe' && entry.ingredients) {
+      return this.calculateRecipeCalories(entry.ingredients, entry.manualTotalCalories);
+    } else if (entry.mode === 'simple' && entry.caloriesPer100g && entry.weightGrams) {
+      return this.calculateSimpleCalories(entry.caloriesPer100g, entry.weightGrams);
+    }
+    return 0;
+  }
+
   /**
    * Create a new entry
    */
   static async createEntry(data: Partial<IEntry>): Promise<IEntry> {
     await dbConnect();
-    
-    // Calculate calories if not provided
-    if (!data.calculatedCalories && data.caloriesPer100g && data.weightGrams) {
-      data.calculatedCalories = (data.caloriesPer100g * data.weightGrams) / 100;
+
+    // Calculate calories based on mode
+    if (!data.calculatedCalories) {
+      data.calculatedCalories = this.calculateCalories(data);
     }
-    
+
     const entry = new Entry(data);
     return entry.save();
   }
@@ -70,17 +116,18 @@ export class EntryService {
    */
   static async updateEntry(id: string, data: Partial<IEntry>): Promise<IEntry | null> {
     await dbConnect();
-    
-    // Recalculate calories if needed
-    if (data.caloriesPer100g || data.weightGrams) {
-      const current = await Entry.findById(id);
-      if (current) {
-        const cal100 = data.caloriesPer100g || current.caloriesPer100g;
-        const weight = data.weightGrams || current.weightGrams;
-        data.calculatedCalories = (cal100 * weight) / 100;
-      }
+
+    const current = await Entry.findById(id);
+    if (!current) {
+      return null;
     }
-    
+
+    // Merge current data with update data for calculation
+    const mergedData = { ...current.toObject(), ...data };
+
+    // Recalculate calories based on mode and data changes
+    data.calculatedCalories = this.calculateCalories(mergedData);
+
     return Entry.findByIdAndUpdate(id, data, { new: true, runValidators: true });
   }
 
@@ -113,12 +160,46 @@ export class EntryService {
       userId,
       createdAt: { $gte: thirtyDaysAgo },
     })
-      .select('foodName')
+      .select('mode foodName recipeName')
       .sort({ createdAt: -1 })
       .limit(limit * 2); // Get more to account for duplicates
     
-    // Return unique food names
-    const uniqueFoods = Array.from(new Set(entries.map((e) => e.foodName)));
+    // Return unique food/recipe names
+    const uniqueFoods = Array.from(
+      new Set(entries.map((e) => (e.mode === 'simple' ? e.foodName : e.recipeName)))
+    );
     return uniqueFoods.slice(0, limit);
+  }
+
+  /**
+   * Get recent entries with full details for duplication
+   */
+  static async getRecentEntries(userId: string, limit: number = 10): Promise<IEntry[]> {
+    await dbConnect();
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    
+    // Get entries, removing duplicates by keeping only the most recent of each food
+    const entries = await Entry.find({
+      userId,
+      createdAt: { $gte: thirtyDaysAgo },
+    })
+      .sort({ createdAt: -1 })
+      .limit(limit * 3); // Get more to account for filtering duplicates
+    
+    // Create a map to track which foods we've seen
+    const seenFoods = new Set<string>();
+    const uniqueEntries: IEntry[] = [];
+    
+    for (const entry of entries) {
+      const foodKey = entry.mode === 'simple' ? entry.foodName : entry.recipeName;
+      if (!seenFoods.has(foodKey)) {
+        seenFoods.add(foodKey);
+        uniqueEntries.push(entry);
+        if (uniqueEntries.length >= limit) break;
+      }
+    }
+    
+    return uniqueEntries;
   }
 }
